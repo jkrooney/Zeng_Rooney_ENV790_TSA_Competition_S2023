@@ -1,0 +1,48 @@
+---
+title: "TSA Competition"
+author: "Angela Zeng & John Rooney"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+geometry: margin=2.54cm
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,tidy.opts=list(width.cutoff=80), tidy=FALSE) 
+```
+
+## Set up
+```{r message=FALSE}
+#Load libraries 
+library(readxl)
+library(tidyverse)
+library(Kendall)
+library(tseries)
+library(forecast)
+```
+
+##Import and process data 
+```{r}
+#import datasets
+load_df<- read_excel(path="./Competition/Data/load.xlsx",col_names=TRUE)
+
+#Create column with daily load (by averaging hourly load)
+load_df$daily_load<- rowMeans(load_df[,3:26])
+
+#clean dataframe (excludes 2010)
+clean_load<- load_df[,c(2,27)]
+clean_load$date<- as.Date(clean_load$date)
+clean_load<- clean_load %>%
+  filter(year(date)<= 2009)
+```
+
+##Create ts object 
+```{r}
+ts_load<- msts(clean_load[,2], seasonal.periods =c(7,365.25), start=c(2005,01,01))
+```
+
+
+
