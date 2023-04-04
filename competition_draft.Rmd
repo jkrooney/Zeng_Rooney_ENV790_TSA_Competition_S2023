@@ -27,7 +27,7 @@ library(forecast)
 ##Import and process data 
 ```{r}
 #import datasets
-load_df<- read_excel(path="./Competition/Data/load.xlsx",col_names=TRUE)
+load_df<- read_excel(path="./Data/load.xlsx",col_names=TRUE)
 
 #Create column with daily load (by averaging hourly load)
 load_df$daily_load<- rowMeans(load_df[,3:26])
