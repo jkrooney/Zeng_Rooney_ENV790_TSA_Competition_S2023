@@ -27,7 +27,7 @@ library(forecast)
 ##Import and process data 
 ```{r}
 #import datasets
-load_df<- read_excel(path="./Data/load.xlsx",col_names=TRUE)
+load_df<- read_excel(path="./Competition/Data/load.xlsx",col_names=TRUE)
 
 #Create column with daily load (by averaging hourly load)
 load_df$daily_load<- rowMeans(load_df[,3:26])
@@ -36,13 +36,53 @@ load_df$daily_load<- rowMeans(load_df[,3:26])
 clean_load<- load_df[,c(2,27)]
 clean_load$date<- as.Date(clean_load$date)
 clean_load<- clean_load %>%
-  filter(year(date)<= 2009)
+  filter(year(date)<= 2009) %>%
+  arrange(date) #ensures that the dates are in order 
+
+#check for NAs and deal 
+
 ```
 
 ##Create ts object 
 ```{r}
 ts_load<- msts(clean_load[,2], seasonal.periods =c(7,365.25), start=c(2005,01,01))
+
+#tsclean() from package forecast identify and replace outliers and missing values in a time series using linear interpolation.
+clean_ts_load <- tsclean(ts_load) 
+```
+
+##Plot data 
+```{r}
+ggplot(clean_load, aes(x= date, y= daily_load)) +
+  geom_line(color= "blue") +
+  labs(y='Demand (units?)',
+       x='Year')+
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y")
+
+par(mfrow=c(1,2))
+Acf(clean_ts_load,lag.max=40, plot=TRUE)
+Pacf(clean_ts_load,lag.max=40, plot=TRUE)
 ```
 
 
+```{r}
+#decompose
+decompose_load<- decompose(clean_ts_load)
+plot(decompose_load)
+
+deseasonal_load <- seasadj(decompose_load)
+
+#tests
+#agumented dickey fuller test (ADF)
+#Null hypothesis is that data has a unit root
+#p value > 0.05 then accept null hypothesis, data has a unit root, i.e., stochastic trend
+print("Results for ADF test")
+print(adf.test(deseasonal_load, alternative = "stationary"))
+
+#Seasonal Mann-Kendall
+#p value < 0.05 then reject null hypothesis, data follow a trend
+SMKtest <- SeasonalMannKendall(deseasonal_load)
+print("Results for Seasonal Mann Kendall")
+print(summary(SMKtest))
+```
 
