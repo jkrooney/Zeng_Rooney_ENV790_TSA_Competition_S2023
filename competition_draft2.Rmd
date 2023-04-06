@@ -1,0 +1,130 @@
+---
+title: "TSA Competition"
+author: "Angela Zeng & John Rooney"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+geometry: margin=2.54cm
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,tidy.opts=list(width.cutoff=80), tidy=FALSE) 
+```
+
+## Set up
+```{r message=FALSE}
+#Load libraries 
+library(readxl)
+library(tidyverse)
+library(Kendall)
+library(tseries)
+library(forecast)
+library(lubridate)
+library(smooth)
+```
+
+##Import and process data 
+```{r}
+#import datasets
+load_df<- read_excel(path="./Data/load.xlsx",col_names=TRUE)
+
+#Create column with daily load (by averaging hourly load)
+load_df$daily_load<- rowMeans(load_df[,3:26])
+
+#clean dataframe (excludes 2010)
+clean_load<- load_df[,c(2,27)]
+clean_load$date<- as.Date(clean_load$date)
+clean_load<- clean_load %>%
+  filter(year(date)<= 2009) %>%
+  arrange(date) #ensures that the dates are in order 
+
+#full clean data frame
+full_load <- load_df[,c(2,27)]
+full_load$date <- as.Date(full_load$date)
+full_load <- full_load %>%
+  arrange(date)
+```
+
+##Create ts object 
+```{r}
+ts_load<- msts(clean_load[,2], seasonal.periods =c(7,365.25), start=c(2005,01,01))
+
+#tsclean() from package forecast identify and replace outliers and missing values in a time series using linear interpolation.
+clean_ts_load <- tsclean(ts_load) 
+
+ts_full <- msts(clean_load[,2], seasonal.periods =c(7,365.25), start=c(2005,01,01))
+clean_ts_full <-  tsclean(ts_full)
+```
+
+##Plot data 
+```{r}
+ggplot(clean_load, aes(x= date, y= daily_load)) +
+  geom_line(color= "blue") +
+  labs(y='Demand (units?)',
+       x='Year')+
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y")
+
+par(mfrow=c(1,2))
+Acf(clean_ts_load,lag.max=40, plot=TRUE)
+Pacf(clean_ts_load,lag.max=40, plot=TRUE)
+par(mfrow=c(1,1))
+```
+
+
+```{r}
+#decompose
+decompose_load<- decompose(clean_ts_load)
+plot(decompose_load)
+
+deseasonal_load <- seasadj(decompose_load)
+
+#tests
+#agumented dickey fuller test (ADF)
+#Null hypothesis is that data has a unit root
+#p value > 0.05 then accept null hypothesis, data has a unit root, i.e., stochastic trend
+print("Results for ADF test")
+print(adf.test(deseasonal_load, alternative = "stationary"))
+
+#Seasonal Mann-Kendall
+#p value < 0.05 then reject null hypothesis, data follow a trend
+SMKtest <- SeasonalMannKendall(deseasonal_load)
+print("Results for Seasonal Mann Kendall")
+print(summary(SMKtest))
+```
+
+```{r}
+# Create Model 1 Auto Arima, forecast and plot
+model1 <- auto.arima(deseasonal_load, max.D=0, max.P=0, max.Q=0)
+print(model1)
+
+model1_forecast <- forecast(object = model1, h=59)
+plot(model1_forecast)
+```
+
+```{r}
+#Create Model 2 SARIMA, forecast and plot
+model2 <- auto.arima(clean_ts_load)
+print(model2)
+
+model2_forecast <- forecast(object = model2, h=59)
+plot(model2_forecast)
+```
+
+```{r}
+#model 3 SES
+model3 <- es(y=clean_ts_load, h=59, holdout=F, silent=F)
+print(model3)
+
+checkresiduals(model3)
+
+```
+
+```{r}
+model1_scores <- accuracy(model1_forecast, clean_ts_full, test=NULL)
+model2_scores <- accuracy(model2_forecast, clean_ts_full, test=NULL)
+model3_scores <- accuracy(model3$forecast, clean_ts_full, test=NULL)
+
+```
