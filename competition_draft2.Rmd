@@ -18,12 +18,12 @@ knitr::opts_chunk$set(echo = TRUE,tidy.opts=list(width.cutoff=80), tidy=FALSE)
 ```{r message=FALSE}
 #Load libraries 
 library(readxl)
-library(tidyverse)
-library(Kendall)
-library(tseries)
 library(forecast)
-library(lubridate)
+library(tseries)
 library(smooth)
+library(tidyverse)
+library(lubridate)
+library(Kendall)
 ```
 
 ##Import and process data 
@@ -34,97 +34,120 @@ load_df<- read_excel(path="./Data/load.xlsx",col_names=TRUE)
 #Create column with daily load (by averaging hourly load)
 load_df$daily_load<- rowMeans(load_df[,3:26])
 
-#clean dataframe (excludes 2010)
-clean_load<- load_df[,c(2,27)]
-clean_load$date<- as.Date(clean_load$date)
-clean_load<- clean_load %>%
-  filter(year(date)<= 2009) %>%
-  arrange(date) #ensures that the dates are in order 
+#Process date column 
+load_df$date<- as.Date(load_df$date)
+load_df<- load_df %>%
+  arrange(date)
 
 #full clean data frame
 full_load <- load_df[,c(2,27)]
-full_load$date <- as.Date(full_load$date)
-full_load <- full_load %>%
-  arrange(date)
+
+#create a subset for training purpose (excludes 2010)
+train_load<- full_load %>%
+  filter(year(date) <= 2009)
+
+#create a subset for testing purpose (only 2010)
+test_load<- full_load %>%
+  filter(year(date) == 2010)
 ```
 
 ##Create ts object 
 ```{r}
-ts_load<- msts(clean_load[,2], seasonal.periods =c(7,365.25), start=c(2005,01,01))
+#full data set
+ts_full<- msts(full_load[,2], seasonal.periods =c(7,365.25), start=c(2005,01,01))
+#tsclean identifies and replace outliers and missing values using linear interpolation
+clean_ts_full <- tsclean(ts_full) 
 
-#tsclean() from package forecast identify and replace outliers and missing values in a time series using linear interpolation.
-clean_ts_load <- tsclean(ts_load) 
+#excludes 2010, Training set 
+ts_train <- msts(train_load[,2], seasonal.periods =c(7,365.25), start=c(2005,01,01))
+clean_ts_train <-  tsclean(ts_train)
 
-ts_full <- msts(clean_load[,2], seasonal.periods =c(7,365.25), start=c(2005,01,01))
-clean_ts_full <-  tsclean(ts_full)
+#only 2010, Test set
+ts_test<- msts(test_load[,2], seasonal.periods =c(7,365.25), start=c(2010,01,01))
+clean_ts_test <-  tsclean(ts_test)
 ```
 
 ##Plot data 
 ```{r}
-ggplot(clean_load, aes(x= date, y= daily_load)) +
+#plot the training dataset
+ggplot(train_load, aes(x= date, y= daily_load)) +
   geom_line(color= "blue") +
-  labs(y='Demand (units?)',
+  labs(y='Demand',
        x='Year')+
   scale_x_date(date_breaks = "1 year", date_labels = "%Y")
 
 par(mfrow=c(1,2))
-Acf(clean_ts_load,lag.max=40, plot=TRUE)
-Pacf(clean_ts_load,lag.max=40, plot=TRUE)
+Acf(clean_ts_train,lag.max=40, plot=TRUE)
+Pacf(clean_ts_train,lag.max=40, plot=TRUE)
 par(mfrow=c(1,1))
 ```
 
 
 ```{r}
-#decompose
-decompose_load<- decompose(clean_ts_load)
-plot(decompose_load)
+#Decompose
+decompose_load<- mstl(clean_ts_train)
+autoplot(decompose_load)
 
-deseasonal_load <- seasadj(decompose_load)
+deseasonal_load <- seasadj(decompose_load) 
 
-#tests
-#agumented dickey fuller test (ADF)
-#Null hypothesis is that data has a unit root
-#p value > 0.05 then accept null hypothesis, data has a unit root, i.e., stochastic trend
+#Tests
+#if p value > 0.05 then accept null hypothesis, data has a unit root, i.e., stochastic trend
 print("Results for ADF test")
 print(adf.test(deseasonal_load, alternative = "stationary"))
 
-#Seasonal Mann-Kendall
-#p value < 0.05 then reject null hypothesis, data follow a trend
+#if p value < 0.05 then reject null hypothesis, data follow a trend
 SMKtest <- SeasonalMannKendall(deseasonal_load)
 print("Results for Seasonal Mann Kendall")
 print(summary(SMKtest))
 ```
 
 ```{r}
-# Create Model 1 Auto Arima, forecast and plot
+# Create Model 1 Auto Arima on deseasonalized data, forecast and plot
 model1 <- auto.arima(deseasonal_load, max.D=0, max.P=0, max.Q=0)
 print(model1)
 
-model1_forecast <- forecast(object = model1, h=59)
+model1_forecast <- forecast(object = model1, h=424)
 plot(model1_forecast)
+
+#AIC of 27337.23
 ```
 
 ```{r}
-#Create Model 2 SARIMA, forecast and plot
-model2 <- auto.arima(clean_ts_load)
+#Create Model 2 SARIMA on original data, forecast and plot
+model2 <- auto.arima(clean_ts_train)
 print(model2)
 
-model2_forecast <- forecast(object = model2, h=59)
+model2_forecast <- forecast(object = model2, h=424)
 plot(model2_forecast)
+
+#AIC of 27951.64
 ```
 
 ```{r}
-#model 3 SES
-model3 <- es(y=clean_ts_load, h=59, holdout=F, silent=F)
+#model 3 Simple Exponential Smoothing on original data
+model3 <- es(y=clean_ts_train, h=424, holdout=F, silent=F)
 print(model3)
 
 checkresiduals(model3)
 
+#AIC of 28079.91
 ```
 
 ```{r}
-model1_scores <- accuracy(model1_forecast, clean_ts_full, test=NULL)
-model2_scores <- accuracy(model2_forecast, clean_ts_full, test=NULL)
-model3_scores <- accuracy(model3$forecast, clean_ts_full, test=NULL)
+#test the accuracy of the models 
+model1_scores <- accuracy(model1_forecast, clean_ts_test, test=NULL)
+model1_scores<- model1_scores[,c("RMSE","MAPE")]
+model2_scores <- accuracy(model2_forecast, clean_ts_test, test=NULL)
+model2_scores<- model2_scores[,c("RMSE","MAPE")]
+model3_scores <- accuracy(model3$forecast, clean_ts_test, test=NULL)
+model3_scores<- model3_scores[,c("RMSE","MAPE")]
 
+scores <- as.data.frame(rbind(model1_scores[2,], model2_scores[2,], model3_scores))
+#model 2 is the best
 ```
+
+```{r}
+#extract jan and feb from 2011 forecast of model2
+answer<- model2_forecast$mean[366:424]
+```
+
