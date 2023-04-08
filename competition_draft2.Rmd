@@ -24,6 +24,7 @@ library(smooth)
 library(tidyverse)
 library(lubridate)
 library(Kendall)
+library(writexl)
 ```
 
 ##Import and process data 
@@ -149,5 +150,7 @@ scores <- as.data.frame(rbind(model1_scores[2,], model2_scores[2,], model3_score
 ```{r}
 #extract jan and feb from 2011 forecast of model2
 answer<- model2_forecast$mean[366:424]
+answer<- as.data.frame(answer)
+write_xlsx(answer, "answer1.xlsx")
 ```
 
