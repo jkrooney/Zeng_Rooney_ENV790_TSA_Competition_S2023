@@ -151,7 +151,7 @@ scores <- as.data.frame(rbind(model1_scores[2,], model2_scores[2,], model3_score
 #extract jan and feb from 2011 forecast of model2
 answer<- model2_forecast$mean[366:424]
 answer<- as.data.frame(answer)
-write_xlsx(answer, "answer1.xlsx")
+#write_xlsx(answer, "answer1.xlsx")
 ```
 
 ```{r Model 4 SNAIVE}
@@ -160,18 +160,119 @@ checkresiduals(model4)
 plot(model4)
 ```
 
-```{r Model 5 StructTS}
-model5 <- StructTS(clean_ts_train, type="BSM", fixed=c(NA,NA,NA,NA))
+```{r Model 5 ETS}
+#Fit and forecast STL + ETS model to data
+model5 <-  stlf(clean_ts_train, h=424)
 
-checkresiduals(model5)
-
-#Generating forecasts
-# StructTS() does not call the forecast() internally so we need one more step
-model5forecast <- forecast(model5,h=424)
-plot(model5forecast)
+#Plot foresting results
+autoplot(model5)
 ```
 
-```{r }
+```{r Model 6 ARIMA + FOURIER terms}
+#Fit arima model with fourier terms as exogenous regressors
+# seasonal = FALSE is the same as P=D=Q=0
+# play with K by changing it to K=c(2,2), K=c(2,4), K=c(2,6), etc. The higher the K the longer it will take to converge, because R will try more models.
 
+model6 <- auto.arima(clean_ts_train, seasonal=FALSE, lambda=0, 
+                     xreg=fourier(clean_ts_train, K=c(2,12)))
+
+#Forecast with ARIMA fit
+#also need to specify h for fourier terms
+model6_forecast <- forecast(model6,
+                            xreg=fourier(clean_ts_train, K=c(2,12), h=424),
+                            h=424) 
+
+#Plot foresting results
+autoplot(model6_forecast)
 ```
 
+```{r Model 6.2 ARIMA + FOURIER terms}
+#Fit arima model with fourier terms as exogenous regressors
+# seasonal = FALSE is the same as P=D=Q=0
+# play with K by changing it to K=c(2,2), K=c(2,4), K=c(2,6), etc. The higher the K the longer it will take to converge, because R will try more models.
+
+model6.2 <- auto.arima(clean_ts_train, seasonal=FALSE, lambda=0, 
+                     xreg=fourier(clean_ts_train, K=c(2,6)))
+
+#Forecast with ARIMA fit
+#also need to specify h for fourier terms
+model6.2_forecast <- forecast(model6.2,
+                            xreg=fourier(clean_ts_train, K=c(2,6), h=424),
+                            h=424) 
+
+#Plot foresting results
+autoplot(model6.2_forecast)+ylim(0,10000) #with ylim, difficult to see the massive confidence interval
+```
+
+```{r Model 6.3 ARIMA + FOURIER terms}
+#Fit arima model with fourier terms as exogenous regressors
+# seasonal = FALSE is the same as P=D=Q=0
+# play with K by changing it to K=c(2,2), K=c(2,4), K=c(2,6), etc. The higher the K the longer it will take to converge, because R will try more models.
+
+model6.3 <- auto.arima(clean_ts_train, seasonal=FALSE, lambda=0, 
+                     xreg=fourier(clean_ts_train, K=c(2,4)))
+
+#Forecast with ARIMA fit
+#also need to specify h for fourier terms
+model6.3_forecast <- forecast(model6.3,
+                            xreg=fourier(clean_ts_train, K=c(2,4), h=424),
+                            h=424) 
+
+#Plot foresting results
+autoplot(model6.3_forecast)+ylim(0,10000) #with ylim, difficult to see the massive confidence interval
+```
+
+```{r Model 6.4 ARIMA + FOURIER terms}
+#Fit arima model with fourier terms as exogenous regressors
+# seasonal = FALSE is the same as P=D=Q=0
+# play with K by changing it to K=c(2,2), K=c(2,4), K=c(2,6), etc. The higher the K the longer it will take to converge, because R will try more models.
+
+model6.4 <- auto.arima(clean_ts_train, seasonal=FALSE, lambda=0, 
+                     xreg=fourier(clean_ts_train, K=c(2,2)))
+
+#Forecast with ARIMA fit
+#also need to specify h for fourier terms
+model6.4_forecast <- forecast(model6.4,
+                            xreg=fourier(clean_ts_train, K=c(2,2), h=424),
+                            h=424) 
+
+#Plot foresting results
+autoplot(model6.4_forecast) #with ylim, difficult to see the massive confidence interval
+```
+
+```{r}
+#Model 4: Seasonal naive 
+model4_scores <- accuracy(model4$mean,clean_ts_test)
+
+#Model 5: STL + ETS
+model5_scores <- accuracy(model5$mean, clean_ts_test)  
+
+#Model 6: ARIMA + Fourier 
+model6_scores <- accuracy(model6_forecast$mean, clean_ts_test)
+
+model6.2_scores <- accuracy(model6.2_forecast$mean, clean_ts_test)
+model6.3_scores <- accuracy(model6.3_forecast$mean, clean_ts_test)
+model6.4_scores <- accuracy(model6.3_forecast$mean, clean_ts_test)
+```
+
+```{r Accuracy Test Models 1-6}
+model4_scores<- model4_scores[,c("RMSE","MAPE")]
+model5_scores<- model5_scores[,c("RMSE","MAPE")]
+model6_scores<- model6_scores[,c("RMSE","MAPE")]
+model6.2_scores<- model6.2_scores[,c("RMSE","MAPE")]
+model6.3_scores<- model6.3_scores[,c("RMSE","MAPE")]
+model6.4_scores<- model6.4_scores[,c("RMSE","MAPE")]
+
+scores2 <- as.data.frame(rbind(model4_scores, model5_scores, model6_scores, model6.2_scores, model6.3_scores, model6.4_scores))
+
+scores<- rbind(scores,scores2)
+
+#looks like models 6.3 and 6.4 are the same and the best models
+```
+
+```{r Extract data for second Kaggle submission}
+#extract jan and feb from 2011 forecast of model6.3
+answer2<- model6.3_forecast$mean[366:424]
+answer2<- as.data.frame(answer2)
+#write_xlsx(answer2, "answer2.xlsx")
+```
