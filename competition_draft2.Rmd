@@ -128,23 +128,41 @@ plot(model2_forecast)
 #model 3 Simple Exponential Smoothing on original data
 model3 <- es(y=clean_ts_train, h=424, holdout=F, silent=F)
 print(model3)
-
 checkresiduals(model3)
-
 #AIC of 28079.91
+
+#SHOULD the SES model BE ON DESEAONALIZED DATA INSTEAD?? 
+#Model 3.1 SES on deseasonalized data 
+model3.1<- es(y=deseasonal_load, h=424, holdout=F, silent=F)
+print(model3.1)
+checkresiduals(model3.1)
+
+#Model 3.2 Seasonal SES
+model3.2 <- es(y=clean_ts_train, model="ZZZ", h= 424, holdout=F, silent=F)
+print(model3.2)
+checkresiduals(model3.2)
+
+#Model 3 and 3.2 are the same 
+
 ```
 
 ```{r Accuracy Test Models 1-3}
 #test the accuracy of the models 
 model1_scores <- accuracy(model1_forecast, clean_ts_test, test=NULL)
-model1_scores<- model1_scores[,c("RMSE","MAPE")]
+model1_scores<- model1_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
 model2_scores <- accuracy(model2_forecast, clean_ts_test, test=NULL)
-model2_scores<- model2_scores[,c("RMSE","MAPE")]
+model2_scores<- model2_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
 model3_scores <- accuracy(model3$forecast, clean_ts_test, test=NULL)
-model3_scores<- model3_scores[,c("RMSE","MAPE")]
+model3_scores<- model3_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
 
-scores <- as.data.frame(rbind(model1_scores[2,], model2_scores[2,], model3_scores))
-#model 2 is the best
+model3.1_scores <- accuracy(model3.1$forecast, clean_ts_test, test=NULL)
+model3.1_scores<- model3.1_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
+model3.2_scores <- accuracy(model3.2$forecast, clean_ts_test, test=NULL)
+model3.2_scores<- model3.2_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
+
+scores <- as.data.frame(rbind(model1_scores[2,], model2_scores[2,], model3_scores, model3.1_scores,
+                              model3.2_scores ))
+print(scores)
 ```
 
 ```{r Extract data for first Kaggle submission}
@@ -240,7 +258,7 @@ model6.4_forecast <- forecast(model6.4,
 autoplot(model6.4_forecast) #with ylim, difficult to see the massive confidence interval
 ```
 
-```{r}
+```{r Scores2}
 #Model 4: Seasonal naive 
 model4_scores <- accuracy(model4$mean,clean_ts_test)
 
@@ -256,16 +274,17 @@ model6.4_scores <- accuracy(model6.3_forecast$mean, clean_ts_test)
 ```
 
 ```{r Accuracy Test Models 1-6}
-model4_scores<- model4_scores[,c("RMSE","MAPE")]
-model5_scores<- model5_scores[,c("RMSE","MAPE")]
-model6_scores<- model6_scores[,c("RMSE","MAPE")]
-model6.2_scores<- model6.2_scores[,c("RMSE","MAPE")]
-model6.3_scores<- model6.3_scores[,c("RMSE","MAPE")]
-model6.4_scores<- model6.4_scores[,c("RMSE","MAPE")]
+model4_scores<- model4_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
+model5_scores<- model5_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
+model6_scores<- model6_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
+model6.2_scores<- model6.2_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
+model6.3_scores<- model6.3_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
+model6.4_scores<- model6.4_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
 
 scores2 <- as.data.frame(rbind(model4_scores, model5_scores, model6_scores, model6.2_scores, model6.3_scores, model6.4_scores))
 
 scores<- rbind(scores,scores2)
+print(scores)
 
 #looks like models 6.3 and 6.4 are the same and the best models
 ```
@@ -279,49 +298,78 @@ answer2<- as.data.frame(answer2)
 
 
 ```{r Model 7 TBATS}
-
 model7 <- tbats(clean_ts_train)
 
 model7_forecast <- forecast(model7, h=424)
 
 #Plot foresting results
 autoplot(model7_forecast) +
-  ylab("Active Power") 
+  ylab("load") 
 
 #Plot model + observed data
 autoplot(clean_ts_test) +
   autolayer(model7_forecast, series="TBATS",PI=FALSE)+
-  ylab("Active Power") 
+  ylab("load") 
 
 ```
-
-### Model 4: Neural Network Time Series Forecasts
-
-There is a function in package `forecast` called `nnetar()` that will fit a feed-forward neural networks model to a time series.
-
-A feed-forward neural network is fitted with lagged values of the series as inputs. The inputs are for lags 1 to p, and lags s to sP where `s=frequency(y)`. If xreg is provided, its columns are also used as inputs. 
-The network is trained for one-step forecasting. Multi-step forecasts are computed recursively.
-
-For non-seasonal data, the fitted model is denoted as an NNAR(p,k) model, where k is the number of hidden nodes. This is analogous to an AR(p) model but with nonlinear functions. For seasonal data, the fitted model is called an NNAR(p,P,k)[m] model, which is analogous to an ARIMA(p,0,0)(P,0,0)[s] model but with nonlinear functions.
 
 ```{r Model 8 Neural Network}
 #You can play with the different values for p and P, you can also use xreg with Fourier term to model the multiple seasonality
 
-#couldn't get 8.1 to run
-
-model8 <- nnetar(clean_ts_train,p=1,P=1)
-#model8.1 <- nnetar(clean_ts_train,p=1,P=0,xreg=fourier(clean_ts_train, K=c(2,4), h=424))
-
+model8 <- nnetar(clean_ts_train,p=1,P=1,)
 model8_forecast <- forecast(model8, h=424) 
-#model8.1_forecast <- forecast(model8, h=424,xreg=fourier(clean_ts_train, K=c(2,4),h=424))
+
+model8.1 <- nnetar(clean_ts_train,p=1,P=0,xreg=fourier(clean_ts_train, K=c(2,2)))
+model8.1_forecast <- forecast(model8.1, h=424,xreg=fourier(clean_ts_train, K=c(2,2),h=424))
+
+model8.2 <- nnetar(clean_ts_train,p=1,P=1,xreg=fourier(clean_ts_train, K=c(2,2)))
+model8.2_forecast <- forecast(model8.2, h=424,xreg=fourier(clean_ts_train, K=c(2,2),h=424))
 
 #Plot foresting results
 autoplot(model8_forecast) +
-  ylab("Active Power") 
+  ylab("load") 
+
+autoplot(model8.1_forecast) +
+  ylab("load") 
+
+autoplot(model8.2_forecast) +
+  ylab("load") 
 
 #Plot model + observed data
 autoplot(clean_ts_test) +
-  autolayer(model8_forecast, series="Neural Network",PI=FALSE)+
-  ylab("Active Power") 
+  autolayer(model8.1_forecast, series="Neural Network",PI=FALSE)+
+  ylab("Load") 
 
+autoplot(clean_ts_test) +
+  autolayer(model8.2_forecast, series="Neural Network",PI=FALSE)+
+  ylab("Load") 
+```
+
+```{r Score3}
+#Model 7: TBATS
+model7_scores <- accuracy(model7_forecast$mean, clean_ts_test)
+
+#Model 8: Neural Network 
+model8_scores <- accuracy(model8_forecast$mean, clean_ts_test)
+model8.1_scores <- accuracy(model8.1_forecast$mean, clean_ts_test)
+model8.2_scores <- accuracy(model8.2_forecast$mean, clean_ts_test)
+```
+
+```{r Accuracy Test Models 1-8}
+model7_scores<- model7_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
+model8_scores<- model8_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
+model8.1_scores<- model8.1_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
+model8.2_scores<- model8.2_scores[,c("ME","RMSE","MAE","MPE","MAPE")]
+
+scores3 <- as.data.frame(rbind(model7_scores, model8_scores, model8.1_scores, model8.2_scores))
+scores<- rbind(scores,scores3)
+
+print(scores)
+
+rownames(scores[scores$ME==min(scores$ME),])
+rownames(scores[scores$RMSE==min(scores$RMSE),])
+rownames(scores[scores$MAE==min(scores$MAE),])
+rownames(scores[scores$MPE==min(scores$MPE),])
+rownames(scores[scores$MAPE==min(scores$MAPE),])
+#looks like models 3, 6.3, 7, and 8.1 are the best
 ```
