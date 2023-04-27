@@ -127,8 +127,9 @@ plot(model2_forecast)
 ```{r Model 3 SES}
 #model 3 Simple Exponential Smoothing on original data
 model3 <- es(y=clean_ts_train, h=424, holdout=F, silent=F)
-print(model3)
+model3_forecast=forecast(model3,h=424)
 checkresiduals(model3)
+plot(model3_forecast)
 #AIC of 28079.91
 
 #SHOULD the SES model BE ON DESEAONALIZED DATA INSTEAD?? 
@@ -372,4 +373,23 @@ rownames(scores[scores$MAE==min(scores$MAE),])
 rownames(scores[scores$MPE==min(scores$MPE),])
 rownames(scores[scores$MAPE==min(scores$MAPE),])
 #looks like models 3, 6.3, 7, and 8.1 are the best
+
+#models 3, 7, 8.1 
+#model 3 is a straight line 
+
+autoplot(clean_ts_test) +
+  autolayer(model7_forecast, series="SES",PI=FALSE)+
+  ylab("Load") 
+#model 7 has the most lowest scores 
+
+autoplot(clean_ts_test) +
+  autolayer(model8.1_forecast, series="Neural Network",PI=FALSE)+
+  ylab("Load") 
+```
+
+```{r Extract data for third Kaggle submission}
+#extract jan and feb from 2011 forecast of model7
+answer3<- model7_forecast$mean[366:424]
+answer3<- as.data.frame(answer3)
+#write_xlsx(answer3, "answer3.xlsx")
 ```
